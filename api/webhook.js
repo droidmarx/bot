@@ -16,31 +16,47 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text;
-  const username = message.from.username ? `@${message.from.username}` : 'Não informado';
-  const avatar = message.from.photo ? message.from.photo[0].file_id : '';
+  const username = message.from.username ? `@${message.from.username}` : null;
+  const firstName = message.from.first_name || '';
+  const lastName = message.from.last_name || '';
+  const fullName = firstName + (lastName ? ` ${lastName}` : '');
+  const profilePhoto = await getProfilePhoto(chatId);
 
-  // 🔹 Encaminhamento de mensagens para usuários cadastrados
-  if (chatId === 5759760387) {
+  if (text === '/command2') {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
+      const userExists = users.some(user => user.chatId === chatId.toString());
 
-      if (!users.length) {
-        console.log('Nenhum usuário registrado.');
-        return res.status(200).send('Nenhum usuário registrado.');
+      if (userExists) {
+        await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
+        return res.status(200).send('Usuário já cadastrado');
       }
 
-      console.log(`Encaminhando mensagem para ${users.length} usuários.`);
-      await Promise.all(users.map(user => sendMessage(user.chatId, text)));
+      let validName = username || fullName.trim();
+      if (!validName) {
+        await sendMessage(chatId, 'Qual é o seu nome? Responda com seu nome para concluir o cadastro.');
+        return res.status(200).send('Aguardando nome');
+      }
 
-      return res.status(200).send('Mensagem enviada para todos');
+      await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId,
+          name: validName,
+          avatar: profilePhoto
+        })
+      });
+
+      await sendMessage(chatId, 'Você foi registrado com sucesso para receber notificações.');
+      return res.status(200).send('Usuário registrado');
     } catch (err) {
-      console.error('Erro ao buscar usuários:', err);
-      return res.status(500).send('Erro ao encaminhar mensagem');
+      console.error(err);
+      await sendMessage(chatId, 'Erro ao verificar cadastro.');
     }
   }
 
-  // 🔹 Remoção de usuário do MockAPI
   if (text === '/command3') {
     try {
       const resp = await fetch(`${API_URL}?chatId=${chatId}`);
@@ -60,36 +76,6 @@ export default async function handler(req, res) {
     return res.status(200).send('Remoção processada');
   }
 
-  // 🔹 Registro automático do usuário (se não existir)
-  if (text === '/command2') {
-    try {
-      const resp = await fetch(API_URL);
-      const users = await resp.json();
-      const userExists = users.some(user => user.chatId === chatId.toString());
-
-      if (!userExists) {
-        await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatId,
-            name: username,
-            avatar
-          })
-        });
-
-        await sendMessage(chatId, 'Você foi registrado com sucesso para receber notificações.');
-      } else {
-        await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
-      }
-    } catch (err) {
-      console.error(err);
-      await sendMessage(chatId, 'Erro ao verificar cadastro.');
-    }
-    return res.status(200).send('Registro verificado');
-  }
-
-  // 🔹 Mensagem padrão para o comando /start
   if (text === '/start') {
     await sendMessage(chatId, 'Seja bem-vindo!');
   }
@@ -105,4 +91,22 @@ async function sendMessage(chatId, text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text })
   });
+}
+
+// 🔹 Função para obter a URL da foto de perfil do usuário
+async function getProfilePhoto(chatId) {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${chatId}`);
+    const data = await response.json();
+
+    if (data.ok && data.result.photos.length > 0) {
+      const fileId = data.result.photos[0][0].file_id;
+      const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+      const fileData = await fileResponse.json();
+      return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileData.result.file_path}`;
+    }
+  } catch (err) {
+    console.error('Erro ao obter foto de perfil:', err);
+  }
+  return null;
 }
