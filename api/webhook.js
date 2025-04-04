@@ -28,7 +28,7 @@ export default async function handler(req, res) {
           await bot.telegram.sendMessage(chatId, 'Você já está recebendo notificações.');
         }
       } else if (text === '/command1') {
-        await bot.telegram.sendMessage(chatId, 'https://bot-nine-gray.vercel.app/');
+        await bot.telegram.sendMessage(chatId, 'https://estoque-control.vercel.app/');
       } else {
         await Promise.all(
           authorizedUsers.map(user =>
