@@ -24,17 +24,19 @@ export default async function handler(req, res) {
 
   if (text === '/command2') {
     try {
-      // 🔹 Verifica se o usuário já está cadastrado
+      // 🔹 Obtém todos os usuários registrados
       const resp = await fetch(API_URL);
       const users = await resp.json();
-      const userExists = users.some(user => user.chatId === chatId.toString());
+
+      // 🔹 Verifica se o usuário já está cadastrado
+      const userExists = users.some(user => user.chatId.toString() === chatId.toString());
 
       if (userExists) {
         await sendMessage(chatId, 'Você já está registrado.');
         return res.status(200).send('Usuário já registrado');
       }
 
-      // 🔹 Valida o nome do usuário antes de registrar
+      // 🔹 Valida o nome antes do cadastro
       let validName = username || fullName.trim();
       if (!validName) {
         await sendMessage(chatId, 'Qual é o seu nome? Responda com seu nome para concluir o cadastro.');
@@ -62,12 +64,17 @@ export default async function handler(req, res) {
 
   if (text === '/command3') {
     try {
-      const resp = await fetch(`${API_URL}?chatId=${chatId}`);
+      const resp = await fetch(API_URL);
       const users = await resp.json();
 
-      if (users.length > 0) {
-        const userId = users[0].id;
-        await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
+      // 🔹 Encontra todos os registros do usuário
+      const userRecords = users.filter(user => user.chatId.toString() === chatId.toString());
+
+      if (userRecords.length > 0) {
+        // 🔹 Deleta todos os registros duplicados
+        for (const user of userRecords) {
+          await fetch(`${API_URL}/${user.id}`, { method: 'DELETE' });
+        }
         await sendMessage(chatId, 'Seu registro foi removido.');
       } else {
         await sendMessage(chatId, 'Você não está registrado.');
