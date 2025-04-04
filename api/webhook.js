@@ -7,7 +7,6 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method === 'POST') {
     const data = req.body;
-
     const message = data?.message?.text;
     const chatId = data?.message?.chat?.id;
 
@@ -18,6 +17,15 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           chat_id: chatId,
           text: "Você enviou 1, e eu respondi!"
+        })
+      });
+    } else if (message === "2") {
+      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "Você enviou 2, aqui está a resposta do command2!"
         })
       });
     }
