@@ -6,9 +6,9 @@ export default async function handler(req, res) { if (req.method !== 'POST') ret
 
 const update = req.body; const message = update?.message; if (!message) return res.status(200).send('No message');
 
-const chatId = message.chat.id; const text = message.text; const username = message.from.username ? @${message.from.username} : 'Usuário';
+const chatId = message.chat.id; const text = message.text; const username = message.from.username || Usuário_${chatId};
 
-// 🔹 Encaminhamento de mensagens do bot para os usuários cadastrados if (chatId === 5759760387) { try { const resp = await fetch(API_URL); const users = await resp.json();
+// 🔹 Encaminhamento de mensagens para usuários cadastrados if (chatId === 5759760387) { try { const resp = await fetch(API_URL); const users = await resp.json();
 
 if (!users.length) {
     return res.status(200).send('Nenhum usuário registrado.');
@@ -30,7 +30,7 @@ if (users.length > 0) {
     await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
     await sendMessage(chatId, 'Registro removido, você não receberá mais notificações!');
   } else {
-    await sendMessage(chatId, 'Você já foi removido das notificações ou não estava cadastrado.');
+    await sendMessage(chatId, 'Você já foi removido ou não estava cadastrado.');
   }
 } catch (err) {
   console.error('Erro ao remover usuário:', err);
@@ -48,28 +48,19 @@ if (!userExists) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chatId, name: username })
     });
-    await sendMessage(chatId, `${username} cadastrado com sucesso.`);
+    await sendMessage(chatId, 'Registro realizado com sucesso! Agora você receberá notificações.');
   } else {
     await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
   }
 } catch (err) {
-  console.error('Erro ao registrar usuário:', err);
-  await sendMessage(chatId, 'Erro ao processar seu cadastro.');
+  console.error(err);
+  await sendMessage(chatId, 'Erro ao registrar seus dados.');
 }
 return res.status(200).send('Registro processado');
 
 }
 
-// 🔹 Comandos básicos switch (text) { case '/start': await sendMessage(chatId, 'Seja muito bem-vindo!'); break;
-
-case '/command1':
-  await sendMessage(chatId, 'https://estoque-control.vercel.app/');
-  break;
-
-default:
-  break;
-
-}
+// 🔹 Comandos básicos switch (text) { case '/start': await sendMessage(chatId, 'Seja muito bem-vindo!'); break; case '/command1': await sendMessage(chatId, 'https://estoque-control.vercel.app/'); break; default: break; }
 
 res.status(200).send('OK'); }
 
