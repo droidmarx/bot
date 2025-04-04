@@ -29,8 +29,8 @@ export default async function handler(req, res) {
     const resp = await fetch(`${API_URL}?chatId=${chatId}`);
     const users = await resp.json();
 
-    // 🔹 Comando secreto para mostrar o chat ID
-    if (text === '/chatid') {
+    // 🔹 Comando para mostrar o chat ID
+    if (text === '/meuid') {
       await sendMessage(chatId, `Seu *chat ID* é:\n\`${chatId}\``, 'Markdown');
       return res.status(200).send('Chat ID enviado');
     }
