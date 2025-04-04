@@ -17,16 +17,14 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text;
-  const isFromBot = message.from?.is_bot; // Verifica se foi o bot que enviou
 
   if (text === '/command2') {
     try {
-      // Verifica se o usuário já está cadastrado
+      // Verifica se já está cadastrado
       const response = await fetch(`${API_URL}?chatId=${chatId}`);
       const data = await response.json();
 
       if (data.length === 0) {
-        // Cadastra no mockapi
         await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -38,25 +36,29 @@ export default async function handler(req, res) {
         await sendMessage(chatId, 'Você já está recebendo notificações.');
       }
     } catch (error) {
-      console.error('Erro ao acessar o MockAPI:', error);
-      await sendMessage(chatId, 'Ocorreu um erro. Tente novamente mais tarde.');
+      console.error('Erro ao cadastrar usuário:', error);
+      await sendMessage(chatId, 'Erro ao processar sua solicitação.');
     }
-  } else if (isFromBot) {
-    // Se a mensagem foi enviada pelo bot, repassa para todos os usuários
+  }
+
+  // Se a mensagem veio do chat 5759760387, envia para todos os usuários
+  if (chatId === 5759760387) {
     try {
       const response = await fetch(API_URL);
       const users = await response.json();
 
-      await Promise.all(users.map(user => sendMessage(user.chatId, text)));
+      await Promise.all(
+        users.map(user => sendMessage(user.chatId, text))
+      );
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
+      console.error('Erro ao repassar mensagem:', error);
     }
   }
 
   res.status(200).send('OK');
 }
 
-// Função para enviar mensagem ao Telegram
+// Função para enviar mensagens
 async function sendMessage(chatId, text) {
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
