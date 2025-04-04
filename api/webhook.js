@@ -9,27 +9,27 @@ export const config = {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-
+  
   const update = req.body;
   const message = update?.message;
   if (!message) return res.status(200).send('No message');
-
+  
   const chatId = message.chat.id;
   const text = message.text;
   const username = message.from.username ? `@${message.from.username}` : null;
-
+  
   if (!username) {
     await sendMessage(chatId, 'Seu nome de usuário não está definido. Configure um username no Telegram antes de se registrar.');
     return res.status(200).send('Nome de usuário inválido');
   }
-
+  
   const avatarUrl = await getProfilePhoto(chatId);
-
+  
   // 🔹 Verifica se o usuário já está cadastrado
   try {
     const resp = await fetch(`${API_URL}?chatId=${chatId}`);
     const users = await resp.json();
-
+    
     if (text === '/command3') {
       if (users.length > 0) {
         await fetch(`${API_URL}/${users[0].id}`, { method: 'DELETE' });
@@ -39,12 +39,12 @@ export default async function handler(req, res) {
       }
       return res.status(200).send('Remoção processada');
     }
-
+    
     if (text === '/command1') {
-      await sendMessage(chatId, 'Acesse o sistema de estoque aqui: [Estoque Control](https://estoque-control.vercel.app/)');
+      await sendMessage(chatId, 'Acesse o sistema aqui: [INDAIBOT](https://estoque-control.vercel.app)');
       return res.status(200).send('Link enviado');
     }
-
+    
     if (text === '/command2') {
       if (users.length > 0) {
         await sendMessage(chatId, 'Você já está registrado.');
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
             avatar: avatarUrl,
           })
         });
-
+        
         await sendMessage(chatId, 'Registro concluído com sucesso! Agora você receberá notificações.');
       }
       return res.status(200).send('Registro processado');
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     await sendMessage(chatId, 'Erro ao processar sua solicitação.');
     return res.status(500).send('Erro no servidor');
   }
-
+  
   res.status(200).send('OK');
 }
 
@@ -92,7 +92,7 @@ async function getProfilePhoto(chatId) {
       const fileId = data.result.photos[0][0].file_id;
       const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
       const fileData = await fileResponse.json();
-
+      
       return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileData.result.file_path}`;
     }
   } catch (error) {
