@@ -1,23 +1,26 @@
+// /api/webhook.js
+
 export default async function handler(req, res) {
-    if (req.method === "POST") {
-        const { message } = req.body;
-        if (message) {
-            const chatId = message.chat.id;
-            const text = message.text;
+  if (req.method === 'POST') {
+    const data = req.body;
 
-            // Responde a mensagem
-            await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: `Você disse: ${text}`,
-                }),
-            });
+    // Exemplo: responde com "Olá!" se receber o texto "1"
+    const message = data?.message?.text;
+    const chatId = data?.message?.chat.id;
 
-            return res.status(200).json({ status: "ok" });
-        }
+    if (message === "1") {
+      const reply = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "Você enviou 1, e eu respondi!"
+        })
+      });
     }
 
-    res.status(400).json({ error: "Método não suportado" });
+    res.status(200).send("OK");
+  } else {
+    res.status(405).send("Method Not Allowed");
+  }
 }
