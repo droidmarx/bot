@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   // 🛑 Novo comando para remover notificações
-  if (text === 'Não receber mais notificação') {
+  if (text === 'command3') {
     try {
       const resp = await fetch(`${API_URL}?chatId=${chatId}`);
       const users = await resp.json();
