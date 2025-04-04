@@ -1,12 +1,10 @@
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const API_URL = 'https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users';
 
-let awaitingData = {}; // Armazena estado do registro
+let awaitingData = {};
 
 export const config = {
-  api: {
-    bodyParser: true,
-  },
+  api: { bodyParser: true },
 };
 
 export default async function handler(req, res) {
@@ -18,47 +16,8 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text;
-
-  // 🔹 Encaminhamento de mensagens do bot para os usuários cadastrados
-  if (chatId === 5759760387) {
-    try {
-      const resp = await fetch(API_URL);
-      const users = await resp.json();
-
-      if (!users.length) {
-        console.log('Nenhum usuário registrado.');
-        return res.status(200).send('Nenhum usuário registrado.');
-      }
-
-      console.log(`Encaminhando mensagem para ${users.length} usuários.`);
-      await Promise.all(users.map(user => sendMessage(user.chatId, text)));
-      
-      return res.status(200).send('Mensagem enviada para todos');
-    } catch (err) {
-      console.error('Erro ao buscar usuários:', err);
-      return res.status(500).send('Erro ao encaminhar mensagem');
-    }
-  }
-
-  // 🔹 Remove notificações do usuário
-  if (text === 'command3') {
-    try {
-      const resp = await fetch(`${API_URL}?chatId=${chatId}`);
-      const users = await resp.json();
-
-      if (users.length > 0) {
-        const userId = users[0].id;
-        await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
-        await sendMessage(chatId, 'Registro removido, você não receberá mais notificações!');
-      } else {
-        await sendMessage(chatId, 'Você já foi removido das notificações ou não estava cadastrado.');
-      }
-    } catch (err) {
-      console.error('Erro ao remover usuário:', err);
-      await sendMessage(chatId, 'Ocorreu um erro ao processar sua solicitação.');
-    }
-    return res.status(200).send('Remoção processada');
-  }
+  const user = message.from;
+  const username = user.username ? `@${user.username}` : 'Sem usuário';
 
   // 🔹 Fluxo de registro interativo
   if (awaitingData[chatId]) {
@@ -72,15 +31,18 @@ export default async function handler(req, res) {
       await sendMessage(chatId, 'Por fim, informe seu número de celular:');
     } else {
       awaitingData[chatId].phone = text;
-
       try {
+        const profilePhoto = await getUserProfilePhoto(user.id);
+        
         await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chatId,
             name: `${userData.name} ${userData.surname}`,
-            phone: userData.phone
+            phone: userData.phone,
+            avatar: profilePhoto || 'https://via.placeholder.com/150', // Se não tiver foto, usa um placeholder
+            username: username
           })
         });
 
@@ -94,42 +56,52 @@ export default async function handler(req, res) {
     return res.status(200).send('Registro processado');
   }
 
-  // 🔹 Comandos básicos
-  switch (text) {
-    case '/start':
-      await sendMessage(chatId, 'Seja muito bem-vindo!');
-      break;
+  // 🔹 Comando para iniciar o cadastro
+  if (text === '/command2') {
+    try {
+      const resp = await fetch(API_URL);
+      const users = await resp.json();
+      const userExists = users.some(user => user.chatId === chatId.toString());
 
-    case '/command1':
-      await sendMessage(chatId, 'https://estoque-control.vercel.app/');
-      break;
-
-    case '/command2':
-      try {
-        const resp = await fetch(API_URL);
-        const users = await resp.json();
-        const userExists = users.some(user => user.chatId === chatId.toString());
-
-        if (!userExists) {
-          awaitingData[chatId] = { step: 1 };
-          await sendMessage(chatId, 'Para se cadastrar, informe seu nome:');
-        } else {
-          await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
-        }
-      } catch (err) {
-        console.error(err);
-        await sendMessage(chatId, 'Erro ao verificar cadastro.');
+      if (!userExists) {
+        awaitingData[chatId] = {};
+        await sendMessage(chatId, 'Para se cadastrar, informe seu nome:');
+      } else {
+        await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
       }
-      break;
-
-    default:
-      break;
+    } catch (err) {
+      console.error(err);
+      await sendMessage(chatId, 'Erro ao verificar cadastro.');
+    }
+    return res.status(200).send('OK');
   }
 
   res.status(200).send('OK');
 }
 
-// 🔹 Função para enviar mensagem ao Telegram
+// 🔹 Obtém a foto de perfil do usuário
+async function getUserProfilePhoto(userId) {
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${userId}`);
+    const data = await response.json();
+    if (data.ok && data.result.total_count > 0) {
+      const fileId = data.result.photos[0][0].file_id;
+      return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${await getFilePath(fileId)}`;
+    }
+  } catch (error) {
+    console.error('Erro ao obter foto de perfil:', error);
+  }
+  return null;
+}
+
+// 🔹 Obtém o caminho do arquivo da foto de perfil
+async function getFilePath(fileId) {
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+  const data = await response.json();
+  return data.ok ? data.result.file_path : null;
+}
+
+// 🔹 Função para enviar mensagens ao Telegram
 async function sendMessage(chatId, text) {
   console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
