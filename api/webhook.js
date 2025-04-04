@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const chatId = message.chat.id;
   const text = message.text;
 
-  // 🔹 Se a mensagem veio do bot (chatID 5759760387), reenvia para todos os usuários cadastrados
+  // 🔹 Se a mensagem veio do bot (chatID 5759760387), encaminha para todos os usuários cadastrados
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, nome: text })
+        body: JSON.stringify({ chatId, nome: text }) // Salva nome e chatId
       });
 
       delete awaitingName[chatId];
@@ -70,14 +70,15 @@ export default async function handler(req, res) {
 
     case '/command2':
       try {
-        const resp = await fetch(`${API_URL}?chatId=${chatId}`);
-        const existing = await resp.json();
+        const resp = await fetch(API_URL);
+        const users = await resp.json();
+        const userExists = users.some(user => user.chatId === chatId.toString());
 
-        if (existing.length === 0) {
+        if (!userExists) {
           await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId })
+            body: JSON.stringify({ chatId }) // Registra apenas o ID
           });
           await sendMessage(chatId, 'Você agora receberá notificações!');
         } else {
