@@ -19,16 +19,23 @@ export default async function handler(req, res) {
   const chatId = message.chat.id;
   const text = message.text;
 
-  // 🔹 Se o bot receber uma mensagem dele mesmo vinda do chatID 5759760387, ele reencaminha para todos 🔹
+  // 🔹 Se a mensagem veio do bot (chatID 5759760387), reenvia para todos os usuários cadastrados
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
 
+      if (!users.length) {
+        console.log('Nenhum usuário registrado para receber notificações.');
+        return res.status(200).send('Nenhum usuário registrado.');
+      }
+
+      console.log(`Encaminhando mensagem para ${users.length} usuários.`);
       await Promise.all(users.map(user => sendMessage(user.chatId, text)));
+      
       return res.status(200).send('Mensagem enviada para todos');
     } catch (err) {
-      console.error('Erro ao enviar para todos:', err);
+      console.error('Erro ao buscar usuários:', err);
       return res.status(500).send('Erro ao encaminhar mensagem');
     }
   }
@@ -96,6 +103,7 @@ export default async function handler(req, res) {
 
 // Função para enviar mensagem ao Telegram
 async function sendMessage(chatId, text) {
+  console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
