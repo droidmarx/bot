@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       const chatId = message.chat.id;
       const text = message.text;
 
-      if (text === '/command2') {
+      if (text === '/start') {
         if (!authorizedUsers.includes(chatId)) {
           authorizedUsers.push(chatId);
           await bot.telegram.sendMessage(chatId, 'Você agora receberá notificações!');
