@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf';
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
-// Lista temporária de usuários (não persiste entre deploys)
+// Lista temporária de usuários
 let authorizedUsers = [];
 
 export const config = {
@@ -27,6 +27,8 @@ export default async function handler(req, res) {
         } else {
           await bot.telegram.sendMessage(chatId, 'Você já está recebendo notificações.');
         }
+      } else if (text === '/command1') {
+        await bot.telegram.sendMessage(chatId, 'Comando 1 recebido! Aqui está sua resposta especial.');
       } else {
         await Promise.all(
           authorizedUsers.map(user =>
