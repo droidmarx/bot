@@ -25,15 +25,10 @@ export default async function handler(req, res) {
 
   const avatarUrl = await getProfilePhoto(chatId);
 
+  // 🔹 Verifica se o usuário já está cadastrado
   try {
     const resp = await fetch(`${API_URL}?chatId=${chatId}`);
     const users = await resp.json();
-
-    // 🔹 Comando secreto para mostrar o chat ID
-    if (text === '/chatid') {
-      await sendMessage(chatId, `Seu *chat ID* é:\n\`${chatId}\``, 'Markdown');
-      return res.status(200).send('Chat ID enviado');
-    }
 
     if (text === '/command3') {
       if (users.length > 0) {
@@ -46,7 +41,7 @@ export default async function handler(req, res) {
     }
 
     if (text === '/command1') {
-      await sendMessage(chatId, 'Acesse o sistema de estoque aqui: [Estoque Control](https://estoque-control.vercel.app/)', 'Markdown');
+      await sendMessage(chatId, 'Acesse o sistema de estoque aqui: [Estoque Control](https://estoque-control.vercel.app/)');
       return res.status(200).send('Link enviado');
     }
 
@@ -78,12 +73,12 @@ export default async function handler(req, res) {
 }
 
 // 🔹 Função para enviar mensagens
-async function sendMessage(chatId, text, parseMode = 'Markdown') {
+async function sendMessage(chatId, text) {
   console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: parseMode })
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
   });
 }
 
