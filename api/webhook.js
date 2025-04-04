@@ -17,8 +17,9 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text;
+  const isFromBot = message.from?.is_bot; // Verifica se foi o bot que enviou
 
-  if (text === '/start') {
+  if (text === '/command2') {
     try {
       // Verifica se o usuário já está cadastrado
       const response = await fetch(`${API_URL}?chatId=${chatId}`);
@@ -40,13 +41,13 @@ export default async function handler(req, res) {
       console.error('Erro ao acessar o MockAPI:', error);
       await sendMessage(chatId, 'Ocorreu um erro. Tente novamente mais tarde.');
     }
-  } else {
+  } else if (isFromBot) {
+    // Se a mensagem foi enviada pelo bot, repassa para todos os usuários
     try {
-      // Obtém todos os usuários cadastrados e envia a mensagem para todos
       const response = await fetch(API_URL);
       const users = await response.json();
 
-      await Promise.all(users.map(user => sendMessage(user.chatId, `Nova mensagem: ${text}`)));
+      await Promise.all(users.map(user => sendMessage(user.chatId, text)));
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
     }
