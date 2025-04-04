@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const chatId = message.chat.id;
   const text = message.text;
 
-  // 🔹 Se a mensagem veio do bot (chatID 5759760387), encaminha para todos os usuários cadastrados
+  // 🔹 Encaminha mensagens enviadas pelo bot para todos os usuários
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 
       console.log(`Encaminhando mensagem para ${users.length} usuários.`);
       await Promise.all(users.map(user => sendMessage(user.chatId, text)));
-      
+
       return res.status(200).send('Mensagem enviada para todos');
     } catch (err) {
       console.error('Erro ao buscar usuários:', err);
@@ -40,19 +40,20 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🛑 Novo comando para remover notificações
-  if (text === 'command3') {
+  // 🛑 Remover notificações (/command3)
+  if (text === '/command3') {
     try {
-      const resp = await fetch(`${API_URL}?chatId=${chatId}`);
+      const resp = await fetch(API_URL);
       const users = await resp.json();
 
-      if (users.length > 0) {
-        const userId = users[0].id;
+      // 🔹 Filtra o usuário pelo chatId
+      const user = users.find(user => user.chatId.toString() === chatId.toString());
 
-        await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
-        await sendMessage(chatId, 'Registro deletado, você não receberá mais notificações!');
+      if (user) {
+        await fetch(`${API_URL}/${user.id}`, { method: 'DELETE' });
+        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
       } else {
-        await sendMessage(chatId, 'Você já foi removido das notificações ou não estava cadastrado.');
+        await sendMessage(chatId, 'Você já foi removido ou não estava cadastrado.');
       }
     } catch (err) {
       console.error('Erro ao remover usuário:', err);
@@ -61,13 +62,13 @@ export default async function handler(req, res) {
     return res.status(200).send('Remoção processada');
   }
 
-  // 1️⃣ Se o usuário está respondendo após /nome, registra no MockAPI
+  // 1️⃣ Registro de nome após o comando /nome
   if (awaitingName[chatId]) {
     try {
       await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, nome: text }) // Salva nome e chatId
+        body: JSON.stringify({ chatId, nome: text })
       });
 
       delete awaitingName[chatId];
@@ -93,13 +94,13 @@ export default async function handler(req, res) {
       try {
         const resp = await fetch(API_URL);
         const users = await resp.json();
-        const userExists = users.some(user => user.chatId === chatId.toString());
+        const userExists = users.some(user => user.chatId.toString() === chatId.toString());
 
         if (!userExists) {
           await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId }) // Registra apenas o ID
+            body: JSON.stringify({ chatId })
           });
           await sendMessage(chatId, 'Você agora receberá notificações!');
         } else {
