@@ -1,7 +1,7 @@
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const API_URL = 'https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users';
 
-let awaitingName = {};
+let awaitingData = {}; // Armazena estado do registro
 
 export const config = {
   api: {
@@ -19,20 +19,20 @@ export default async function handler(req, res) {
   const chatId = message.chat.id;
   const text = message.text;
 
-  // 🔹 Encaminha mensagens enviadas pelo bot para todos os usuários
+  // 🔹 Encaminhamento de mensagens do bot para os usuários cadastrados
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
 
       if (!users.length) {
-        console.log('Nenhum usuário registrado para receber notificações.');
+        console.log('Nenhum usuário registrado.');
         return res.status(200).send('Nenhum usuário registrado.');
       }
 
       console.log(`Encaminhando mensagem para ${users.length} usuários.`);
       await Promise.all(users.map(user => sendMessage(user.chatId, text)));
-
+      
       return res.status(200).send('Mensagem enviada para todos');
     } catch (err) {
       console.error('Erro ao buscar usuários:', err);
@@ -40,20 +40,18 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🛑 Remover notificações (/command3)
-  if (text === '/command3') {
+  // 🔹 Remove notificações do usuário
+  if (text === 'command3') {
     try {
-      const resp = await fetch(API_URL);
+      const resp = await fetch(`${API_URL}?chatId=${chatId}`);
       const users = await resp.json();
 
-      // 🔹 Filtra o usuário pelo chatId
-      const user = users.find(user => user.chatId.toString() === chatId.toString());
-
-      if (user) {
-        await fetch(`${API_URL}/${user.id}`, { method: 'DELETE' });
-        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
+      if (users.length > 0) {
+        const userId = users[0].id;
+        await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
+        await sendMessage(chatId, 'Registro removido, você não receberá mais notificações!');
       } else {
-        await sendMessage(chatId, 'Você já foi removido ou não estava cadastrado.');
+        await sendMessage(chatId, 'Você já foi removido das notificações ou não estava cadastrado.');
       }
     } catch (err) {
       console.error('Erro ao remover usuário:', err);
@@ -62,25 +60,41 @@ export default async function handler(req, res) {
     return res.status(200).send('Remoção processada');
   }
 
-  // 1️⃣ Registro de nome após o comando /nome
-  if (awaitingName[chatId]) {
-    try {
-      await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, nome: text })
-      });
+  // 🔹 Fluxo de registro interativo
+  if (awaitingData[chatId]) {
+    const userData = awaitingData[chatId];
 
-      delete awaitingName[chatId];
-      await sendMessage(chatId, 'Registrado com sucesso!');
-      return res.status(200).send('Nome salvo');
-    } catch (err) {
-      console.error(err);
-      await sendMessage(chatId, 'Erro ao registrar seu nome.');
+    if (!userData.name) {
+      awaitingData[chatId].name = text;
+      await sendMessage(chatId, 'Agora, informe seu sobrenome:');
+    } else if (!userData.surname) {
+      awaitingData[chatId].surname = text;
+      await sendMessage(chatId, 'Por fim, informe seu número de celular:');
+    } else {
+      awaitingData[chatId].phone = text;
+
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId,
+            name: `${userData.name} ${userData.surname}`,
+            phone: userData.phone
+          })
+        });
+
+        delete awaitingData[chatId];
+        await sendMessage(chatId, 'Registrado com sucesso! Agora você receberá notificações.');
+      } catch (err) {
+        console.error(err);
+        await sendMessage(chatId, 'Erro ao registrar seus dados.');
+      }
     }
+    return res.status(200).send('Registro processado');
   }
 
-  // 2️⃣ Comandos básicos
+  // 🔹 Comandos básicos
   switch (text) {
     case '/start':
       await sendMessage(chatId, 'Seja muito bem-vindo!');
@@ -94,27 +108,18 @@ export default async function handler(req, res) {
       try {
         const resp = await fetch(API_URL);
         const users = await resp.json();
-        const userExists = users.some(user => user.chatId.toString() === chatId.toString());
+        const userExists = users.some(user => user.chatId === chatId.toString());
 
         if (!userExists) {
-          await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId })
-          });
-          await sendMessage(chatId, 'Você agora receberá notificações!');
+          awaitingData[chatId] = { step: 1 };
+          await sendMessage(chatId, 'Para se cadastrar, informe seu nome:');
         } else {
-          await sendMessage(chatId, 'Você já está recebendo notificações.');
+          await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
         }
       } catch (err) {
         console.error(err);
-        await sendMessage(chatId, 'Erro ao cadastrar usuário.');
+        await sendMessage(chatId, 'Erro ao verificar cadastro.');
       }
-      break;
-
-    case '/nome':
-      awaitingName[chatId] = true;
-      await sendMessage(chatId, 'Qual o seu nome?');
       break;
 
     default:
@@ -124,7 +129,7 @@ export default async function handler(req, res) {
   res.status(200).send('OK');
 }
 
-// Função para enviar mensagem ao Telegram
+// 🔹 Função para enviar mensagem ao Telegram
 async function sendMessage(chatId, text) {
   console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
