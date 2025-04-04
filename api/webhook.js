@@ -40,6 +40,27 @@ export default async function handler(req, res) {
     }
   }
 
+  // 🛑 Novo comando para remover notificações
+  if (text === 'Não receber mais notificação') {
+    try {
+      const resp = await fetch(`${API_URL}?chatId=${chatId}`);
+      const users = await resp.json();
+
+      if (users.length > 0) {
+        const userId = users[0].id;
+
+        await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
+        await sendMessage(chatId, 'Registro deletado, você não receberá mais notificações!');
+      } else {
+        await sendMessage(chatId, 'Você já foi removido das notificações ou não estava cadastrado.');
+      }
+    } catch (err) {
+      console.error('Erro ao remover usuário:', err);
+      await sendMessage(chatId, 'Ocorreu um erro ao processar sua solicitação.');
+    }
+    return res.status(200).send('Remoção processada');
+  }
+
   // 1️⃣ Se o usuário está respondendo após /nome, registra no MockAPI
   if (awaitingName[chatId]) {
     try {
@@ -61,7 +82,7 @@ export default async function handler(req, res) {
   // 2️⃣ Comandos básicos
   switch (text) {
     case '/start':
-      await sendMessage(chatId, 'Seja muito bem vindo !');
+      await sendMessage(chatId, 'Seja muito bem-vindo!');
       break;
 
     case '/command1':
