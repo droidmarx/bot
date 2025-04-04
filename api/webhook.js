@@ -1,3 +1,10 @@
+import { Telegraf } from 'telegraf';
+
+const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
+
+// Lista temporária de usuários (não persiste entre deploys)
+let authorizedUsers = [];
+
 export const config = {
   api: {
     bodyParser: true,
@@ -6,32 +13,31 @@ export const config = {
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
-    const data = req.body;
-    const message = data?.message?.text;
-    const chatId = data?.message?.chat?.id;
+    const update = req.body;
+    const message = update.message;
 
-    if (message === "1") {
-      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Você enviou 1, e eu respondi!"
-        })
-      });
-    } else if (message === "2") {
-      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "Você enviou 2, aqui está a resposta do command2!"
-        })
-      });
+    if (message) {
+      const chatId = message.chat.id;
+      const text = message.text;
+
+      if (text === '/command2') {
+        if (!authorizedUsers.includes(chatId)) {
+          authorizedUsers.push(chatId);
+          await bot.telegram.sendMessage(chatId, 'Você agora receberá notificações!');
+        } else {
+          await bot.telegram.sendMessage(chatId, 'Você já está recebendo notificações.');
+        }
+      } else {
+        await Promise.all(
+          authorizedUsers.map(user =>
+            bot.telegram.sendMessage(user, `Nova mensagem: ${text}`)
+          )
+        );
+      }
     }
 
-    res.status(200).send("OK");
+    res.status(200).send('OK');
   } else {
-    res.status(405).send("Method Not Allowed");
+    res.status(405).send('Method Not Allowed');
   }
 }
