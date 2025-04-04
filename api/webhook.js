@@ -24,21 +24,24 @@ export default async function handler(req, res) {
 
   if (text === '/command2') {
     try {
+      // 🔹 Verifica se o usuário já está cadastrado
       const resp = await fetch(API_URL);
       const users = await resp.json();
       const userExists = users.some(user => user.chatId === chatId.toString());
 
       if (userExists) {
-        await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
-        return res.status(200).send('Usuário já cadastrado');
+        await sendMessage(chatId, 'Você já está registrado.');
+        return res.status(200).send('Usuário já registrado');
       }
 
+      // 🔹 Valida o nome do usuário antes de registrar
       let validName = username || fullName.trim();
       if (!validName) {
         await sendMessage(chatId, 'Qual é o seu nome? Responda com seu nome para concluir o cadastro.');
         return res.status(200).send('Aguardando nome');
       }
 
+      // 🔹 Registra o usuário no MockAPI
       await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +52,7 @@ export default async function handler(req, res) {
         })
       });
 
-      await sendMessage(chatId, 'Você foi registrado com sucesso para receber notificações.');
+      await sendMessage(chatId, 'Você foi registrado com sucesso.');
       return res.status(200).send('Usuário registrado');
     } catch (err) {
       console.error(err);
@@ -65,13 +68,13 @@ export default async function handler(req, res) {
       if (users.length > 0) {
         const userId = users[0].id;
         await fetch(`${API_URL}/${userId}`, { method: 'DELETE' });
-        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
+        await sendMessage(chatId, 'Seu registro foi removido.');
       } else {
-        await sendMessage(chatId, 'Você não está registrado para notificações.');
+        await sendMessage(chatId, 'Você não está registrado.');
       }
     } catch (err) {
       console.error('Erro ao remover usuário:', err);
-      await sendMessage(chatId, 'Ocorreu um erro ao processar sua solicitação.');
+      await sendMessage(chatId, 'Erro ao processar sua solicitação.');
     }
     return res.status(200).send('Remoção processada');
   }
