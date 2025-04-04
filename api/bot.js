@@ -5,6 +5,7 @@ import express from 'express';
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Adicionado para lidar com dados corretamente
 
 const USERS_FILE = 'users.json';
 
@@ -25,6 +26,7 @@ app.get('/', (req, res) => {
   res.send('Bot rodando!');
 });
 
+// Webhook recebe as mensagens do Telegram
 app.post(`/${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
   const update = req.body;
   const message = update.message;
@@ -42,13 +44,14 @@ app.post(`/${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
         await bot.telegram.sendMessage(chatId, 'Você já está recebendo notificações.');
       }
     } else {
-      for (const user of authorizedUsers) {
-        await bot.telegram.sendMessage(user, text);
-      }
+      await Promise.all(authorizedUsers.map(user => bot.telegram.sendMessage(user, text)));
     }
   }
 
   res.sendStatus(200);
 });
+
+// Definir Webhook para receber mensagens automaticamente
+bot.telegram.setWebhook(`https://bot-nine-gray.vercel.app/${process.env.TELEGRAM_TOKEN}`);
 
 export default app;
