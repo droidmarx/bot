@@ -1,21 +1,14 @@
-import { Telegraf } from 'telegraf';
-import express from 'express';
+// pages/api/webhook.js
 import fetch from 'node-fetch';
-
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-const app = express();
-app.use(express.json());
 
 const API_URL = "https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users";
 
-// Função para verificar se o usuário já está cadastrado
 async function isUserRegistered(chatId) {
   const response = await fetch(API_URL);
   const users = await response.json();
   return users.some(user => user.chatId === chatId.toString());
 }
 
-// Função para cadastrar o usuário no MockAPI
 async function registerUser(chatId, username) {
   await fetch(API_URL, {
     method: 'POST',
@@ -27,7 +20,9 @@ async function registerUser(chatId, username) {
   });
 }
 
-app.post(`/${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
   const update = req.body;
   const message = update.message;
 
@@ -41,17 +36,23 @@ app.post(`/${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
 
       if (!alreadyRegistered) {
         await registerUser(chatId, username);
-        await bot.telegram.sendMessage(chatId, `Registrado com sucesso, ${username}!`);
+        await sendTelegramMessage(chatId, `Registrado com sucesso, ${username}!`);
       } else {
-        await bot.telegram.sendMessage(chatId, 'Você já está registrado!');
+        await sendTelegramMessage(chatId, 'Você já está registrado!');
       }
     }
   }
 
-  res.sendStatus(200);
-});
+  res.status(200).send('OK');
+}
 
-// Define o Webhook
-bot.telegram.setWebhook(`https://bot-nine-gray.vercel.app/${process.env.TELEGRAM_TOKEN}`);
-
-export default app;
+// Função para enviar mensagem
+async function sendTelegramMessage(chatId, text) {
+  const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+  await fetch(url, {
+    method: 'POST',
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text })
+  });
+}
