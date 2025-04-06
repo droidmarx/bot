@@ -1,5 +1,4 @@
 // pages/api/webhook.js
-import fetch from 'node-fetch';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const API_URL = 'https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users';
@@ -31,16 +30,32 @@ export default async function handler(req, res) {
   try {
     const resp = await fetch(`${API_URL}?chatId=${chatId}`);
     const users = await resp.json();
+    console.log(`Usuários encontrados com o chatId ${chatId}:`, users);
 
+    // 🔹 Comando para remover registro
+    if (text === '/command3') {
+      if (users.length > 0) {
+        await fetch(`${API_URL}/${users[0].id}`, { method: 'DELETE' });
+        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
+      } else {
+        await sendMessage(chatId, 'Você não estava cadastrado.');
+      }
+      return res.status(200).send('Remoção processada');
+    }
+
+    // 🔹 Comando para enviar link do sistema
     if (text === '/command1') {
       await sendMessage(chatId, 'Acesse o sistema aqui: [INDAIBOT](https://estoque-control.vercel.app)');
       return res.status(200).send('Link enviado');
     }
 
+    // 🔹 Comando para registrar usuário
     if (text === '/command2') {
       if (users.length > 0) {
         await sendMessage(chatId, 'Você já está registrado.');
       } else {
+        console.log(`Registrando novo usuário: ${username} (${chatId})`);
+
         await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -55,19 +70,8 @@ export default async function handler(req, res) {
       }
       return res.status(200).send('Registro processado');
     }
-
-    if (text === '/command3') {
-      if (users.length > 0) {
-        await fetch(`${API_URL}/${users[0].id}`, { method: 'DELETE' });
-        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
-      } else {
-        await sendMessage(chatId, 'Você não estava cadastrado.');
-      }
-      return res.status(200).send('Remoção processada');
-    }
-
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao processar requisição:', err);
     await sendMessage(chatId, 'Erro ao processar sua solicitação.');
     return res.status(500).send('Erro no servidor');
   }
@@ -77,10 +81,15 @@ export default async function handler(req, res) {
 
 // 🔹 Função para enviar mensagens
 async function sendMessage(chatId, text) {
+  console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: 'Markdown',
+    }),
   });
 }
 
