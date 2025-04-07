@@ -1,13 +1,14 @@
-// pages/api/webhook.js
-
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const API_URL = 'https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users';
+const ADMIN_CHAT_ID = 5759760387; // Substitua pelo seu chatId
 
-// 🔹 Salva estados temporários por chatId
+// Memória temporária para salvar estados por chatId
 const pendingNames = {};
 
 export const config = {
-  api: { bodyParser: true },
+  api: {
+    bodyParser: true,
+  },
 };
 
 export default async function handler(req, res) {
@@ -18,56 +19,46 @@ export default async function handler(req, res) {
   if (!message) return res.status(200).send('No message');
 
   const chatId = message.chat.id;
-  const text = message.text?.trim();
-  if (!text) return res.status(200).send('Empty text');
+  const text = message.text;
 
   try {
-    // Busca usuário no MockAPI
     const resp = await fetch(`${API_URL}?chatId=${chatId}`);
     const users = await resp.json();
 
-    // 🔹 Aguardando nome
+    // Se está aguardando nome
     if (pendingNames[chatId]) {
-      if (!text || text.length < 2) {
-        await sendMessage(chatId, 'O nome está muito curto ou inválido. Por favor, envie seu nome completo.');
-        return res.status(200).send('Nome inválido');
-      }
-
+      const name = text.trim();
       const avatarUrl = await getProfilePhoto(chatId);
 
       await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId,
-          name: text,
-          avatar: avatarUrl,
-        }),
+        body: JSON.stringify({ chatId, name, avatar: avatarUrl }),
       });
 
       delete pendingNames[chatId];
-      await sendMessage(chatId, `Registro concluído com o nome: *${text}*. Agora você receberá notificações.`);
+      await sendMessage(chatId, `Registro concluído com o nome: *${name}*. Agora você receberá notificações.`);
       return res.status(200).send('Nome registrado');
     }
 
-    // 🔹 Comando: enviar link
+    // /command1 - Link do sistema
     if (text === '/command1') {
       await sendMessage(chatId, 'Acesse o sistema aqui: [INDAIBOT](https://estoque-control.vercel.app)');
       return res.status(200).send('Link enviado');
     }
 
-    // 🔹 Comando: registrar
+    // /command2 - Registro
     if (text === '/command2') {
       if (users.length > 0) {
         await sendMessage(chatId, 'Você já está registrado.');
       } else {
         pendingNames[chatId] = true;
-        await sendMessage(chatId, 'Qual seu nome completo para o registro?');
+        await sendMessage(chatId, 'Qual seu nome para o registro? Responda com seu nome completo.');
       }
       return res.status(200).send('Aguardando nome');
     }
 
-    // 🔹 Comando: remover
+    // /command3 - Remover registro
     if (text === '/command3') {
       if (users.length > 0) {
         await fetch(`${API_URL}/${users[0].id}`, { method: 'DELETE' });
@@ -78,18 +69,34 @@ export default async function handler(req, res) {
       return res.status(200).send('Remoção processada');
     }
 
+    // /todos - Listar usuários (apenas admin)
+    if (text === '/todos') {
+      if (chatId !== ADMIN_CHAT_ID) {
+        await sendMessage(chatId, 'Você não tem permissão para ver essa lista.');
+        return res.status(200).send('Acesso negado');
+      }
+
+      const all = await fetch(API_URL).then(r => r.json());
+      if (all.length === 0) {
+        await sendMessage(chatId, 'Nenhum usuário registrado até o momento.');
+      } else {
+        const list = all.map(u => `• ${u.name}`).join('\n');
+        await sendMessage(chatId, `*Usuários registrados:*\n${list}`);
+      }
+      return res.status(200).send('Lista enviada');
+    }
+
   } catch (err) {
     console.error('Erro ao processar requisição:', err);
     await sendMessage(chatId, 'Erro ao processar sua solicitação.');
     return res.status(500).send('Erro no servidor');
   }
 
-  return res.status(200).send('OK');
+  res.status(200).send('OK');
 }
 
-// 🔹 Enviar mensagens para o Telegram
+// Função para enviar mensagens
 async function sendMessage(chatId, text) {
-  console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -101,7 +108,7 @@ async function sendMessage(chatId, text) {
   });
 }
 
-// 🔹 Obter foto de perfil
+// Função para obter a URL da foto de perfil do Telegram
 async function getProfilePhoto(chatId) {
   try {
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${chatId}`);
@@ -109,8 +116,8 @@ async function getProfilePhoto(chatId) {
 
     if (data.ok && data.result.total_count > 0) {
       const fileId = data.result.photos[0][0].file_id;
-      const fileResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
-      const fileData = await fileResp.json();
+      const fileResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+      const fileData = await fileResponse.json();
 
       return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileData.result.file_path}`;
     }
