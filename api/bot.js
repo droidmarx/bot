@@ -11,43 +11,43 @@ export const config = {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-  
+
   const update = req.body;
   const message = update?.message;
   if (!message) return res.status(200).send('No message');
-  
+
   const chatId = message.chat.id;
   const text = message.text;
-  
+
   // 🔹 Encaminha mensagens enviadas pelo bot para todos os usuários
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
-      
+
       if (!users.length) {
         console.log('Nenhum usuário registrado para receber notificações.');
         return res.status(200).send('Nenhum usuário registrado.');
       }
-      
+
       console.log(`Encaminhando mensagem para ${users.length} usuários.`);
       await Promise.all(users.map(user => sendMessage(user.chatId, text)));
-      
+
       return res.status(200).send('Mensagem enviada para todos');
     } catch (err) {
       console.error('Erro ao buscar usuários:', err);
       return res.status(500).send('Erro ao encaminhar mensagem');
     }
   }
-  
+
   // 🛑 Remover notificações (/command3)
   if (text === '/command3') {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
-      
+
       const user = users.find(user => user.chatId.toString() === chatId.toString());
-      
+
       if (user) {
         await fetch(`${API_URL}/${user.id}`, { method: 'DELETE' });
         await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     }
     return res.status(200).send('Remoção processada');
   }
-  
+
   // 1️⃣ Registro de nome após o comando /nome
   if (awaitingName[chatId]) {
     try {
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatId, nome: text })
       });
-      
+
       delete awaitingName[chatId];
       await sendMessage(chatId, 'Registrado com sucesso!');
       return res.status(200).send('Nome salvo');
@@ -78,17 +78,17 @@ export default async function handler(req, res) {
       await sendMessage(chatId, 'Erro ao registrar seu nome.');
     }
   }
-  
+
   // 2️⃣ Comandos básicos
   switch (text) {
     case '/start':
       await sendMessage(chatId, 'Seja muito bem-vindo!');
       break;
-      
+
     case '/command1':
-      await sendMessage(chatId, 'Acesse o site aqui: https://estoque-control.vercel.app/');
+      await sendMessage(chatId, 'https://estoque-control.vercel.app/');
       break;
-      
+
     case '/command2':
       try {
         const resp = await fetch(API_URL);
@@ -99,10 +99,28 @@ export default async function handler(req, res) {
           const nome = `${message.from.first_name || ''} ${message.from.last_name || ''}`.trim();
           const username = message.from.username || '';
 
+          // 1. Buscar foto de perfil
+          const profileResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${chatId}&limit=1`);
+          const profileData = await profileResp.json();
+
+          let photoUrl = '';
+          if (profileData.ok && profileData.result.total_count > 0) {
+            const fileId = profileData.result.photos[0][0].file_id;
+
+            // 2. Obter caminho do arquivo
+            const fileResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+            const fileData = await fileResp.json();
+
+            if (fileData.ok) {
+              photoUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${fileData.result.file_path}`;
+            }
+          }
+
+          // 3. Registrar no banco
           await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId, nome, username })
+            body: JSON.stringify({ chatId, nome, username, photoUrl })
           });
 
           await sendMessage(chatId, `Você foi cadastrado com sucesso!\nNome: ${nome}\nUsername: @${username}`);
@@ -114,16 +132,16 @@ export default async function handler(req, res) {
         await sendMessage(chatId, 'Erro ao cadastrar usuário.');
       }
       break;
-      
+
     case '/nome':
       awaitingName[chatId] = true;
       await sendMessage(chatId, 'Qual o seu nome?');
       break;
-      
+
     default:
       break;
   }
-  
+
   res.status(200).send('OK');
 }
 
