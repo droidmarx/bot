@@ -46,7 +46,6 @@ export default async function handler(req, res) {
       const resp = await fetch(API_URL);
       const users = await resp.json();
 
-      // 🔹 Filtra o usuário pelo chatId
       const user = users.find(user => user.chatId.toString() === chatId.toString());
 
       if (user) {
@@ -80,45 +79,35 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2️⃣ Comandos básicos
-  switch (text) {
-    case '/start':
-      await sendMessage(chatId, 'Seja muito bem-vindo!');
-      break;
+  // 2️⃣ Comando de cadastro
+  if (text === '/command2') {
+    try {
+      const resp = await fetch(API_URL);
+      const users = await resp.json();
+      const userExists = users.some(user => user.chatId.toString() === chatId.toString());
 
-    case '/command1':
-      await sendMessage(chatId, 'https://estoque-control.vercel.app/');
-      break;
-
-    case '/command2':
-      try {
-        const resp = await fetch(API_URL);
-        const users = await resp.json();
-        const userExists = users.some(user => user.chatId.toString() === chatId.toString());
-
-        if (!userExists) {
-          await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId })
-          });
-          await sendMessage(chatId, 'Você agora receberá notificações!');
-        } else {
-          await sendMessage(chatId, 'Você já está recebendo notificações.');
-        }
-      } catch (err) {
-        console.error(err);
-        await sendMessage(chatId, 'Erro ao cadastrar usuário.');
+      if (!userExists) {
+        const photoUrl = await getUserPhotoUrl(chatId);
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, photoUrl })
+        });
+        await sendMessage(chatId, 'Você agora receberá notificações!');
+      } else {
+        await sendMessage(chatId, 'Você já está recebendo notificações.');
       }
-      break;
+    } catch (err) {
+      console.error(err);
+      await sendMessage(chatId, 'Erro ao cadastrar usuário.');
+    }
+    return res.status(200).send('Cadastro processado');
+  }
 
-    case '/nome':
-      awaitingName[chatId] = true;
-      await sendMessage(chatId, 'Qual o seu nome?');
-      break;
-
-    default:
-      break;
+  // 3️⃣ Perguntar nome
+  if (text === '/nome') {
+    awaitingName[chatId] = true;
+    await sendMessage(chatId, 'Qual o seu nome?');
   }
 
   res.status(200).send('OK');
@@ -132,4 +121,24 @@ async function sendMessage(chatId, text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text })
   });
+}
+
+// Função para obter a URL real da foto de perfil do usuário
+async function getUserPhotoUrl(chatId) {
+  try {
+    const resPhotos = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${chatId}&limit=1`);
+    const data = await resPhotos.json();
+
+    const fileId = data.result.photos?.[0]?.[0]?.file_id;
+    if (!fileId) return null;
+
+    const resFile = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
+    const fileData = await resFile.json();
+    const filePath = fileData.result.file_path;
+
+    return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${filePath}`;
+  } catch (err) {
+    console.error('Erro ao obter foto de perfil:', err);
+    return null;
+  }
 }
