@@ -1,11 +1,12 @@
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const API_URL = 'https://67ef52aec11d5ff4bf7c4f30.mockapi.io/users';
-const BD_URL = 'https://66d39f5c184dce1713d09736.mockapi.io/Api/v1/BD';
 
-let awaitingData = {};
+let awaitingName = {};
 
 export const config = {
-  api: { bodyParser: true },
+  api: {
+    bodyParser: true,
+  },
 };
 
 export default async function handler(req, res) {
@@ -17,122 +18,113 @@ export default async function handler(req, res) {
 
   const chatId = message.chat.id;
   const text = message.text;
-  const user = message.from;
-  const username = user.username ? `@${user.username}` : 'Sem usuário';
 
-  // 🔹 Comando /start
-  if (text === '/start') {
-    await sendMessage(chatId, 'Seja muito bem-vindo!');
-    return res.status(200).send('OK');
-  }
-
-  // 🔹 Comando /command1
-  if (text === '/command1') {
-    await sendMessage(chatId, 'Acesse o sistema aqui:\nhttps://estoque-control.vercel.app/');
-    return res.status(200).send('OK');
-  }
-
-  // 🔹 Comando /command2 - Registro
-  if (text === '/command2') {
+  // 🔹 Encaminha mensagens enviadas pelo bot para todos os usuários
+  if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
       const users = await resp.json();
-      const userExists = users.some(user => user.chatId === chatId.toString());
 
-      if (!userExists) {
-        awaitingData[chatId] = {};
-        await sendMessage(chatId, 'Para se cadastrar, informe seu nome:');
-      } else {
-        await sendMessage(chatId, 'Você já está cadastrado para receber notificações.');
+      if (!users.length) {
+        console.log('Nenhum usuário registrado para receber notificações.');
+        return res.status(200).send('Nenhum usuário registrado.');
       }
+
+      console.log(`Encaminhando mensagem para ${users.length} usuários.`);
+      await Promise.all(users.map(user => sendMessage(user.chatId, text)));
+
+      return res.status(200).send('Mensagem enviada para todos');
     } catch (err) {
-      console.error(err);
-      await sendMessage(chatId, 'Erro ao verificar cadastro.');
+      console.error('Erro ao buscar usuários:', err);
+      return res.status(500).send('Erro ao encaminhar mensagem');
     }
-    return res.status(200).send('OK');
   }
 
-  // 🔹 Comando /command3 - Contagem de instalações
+  // 🛑 Remover notificações (/command3)
   if (text === '/command3') {
     try {
-      const response = await fetch(API_URL);
-      const users = await response.json();
-      const userInstalls = users.filter(user => user.chatId === chatId.toString());
+      const resp = await fetch(API_URL);
+      const users = await resp.json();
 
-      if (userInstalls.length === 0) {
-        await sendMessage(chatId, 'Você ainda não está cadastrado ou não tem registros de instalações.');
-        return res.status(200).send('OK');
+      // 🔹 Filtra o usuário pelo chatId
+      const user = users.find(user => user.chatId.toString() === chatId.toString());
+
+      if (user) {
+        await fetch(`${API_URL}/${user.id}`, { method: 'DELETE' });
+        await sendMessage(chatId, 'Seu registro foi removido. Você não receberá mais notificações.');
+      } else {
+        await sendMessage(chatId, 'Você já foi removido ou não estava cadastrado.');
       }
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      let totalInstalacoes = 0;
-
-      const installsResponse = await fetch(BD_URL);
-      const installs = await installsResponse.json();
-
-      installs.forEach(inst => {
-        const dataInstalacao = new Date(inst.data);
-        const tecnico = inst.tecnico;
-
-        const isSameMonth = dataInstalacao.getMonth() === currentMonth &&
-                            dataInstalacao.getFullYear() === currentYear;
-
-        if (isSameMonth && tecnico === userInstalls[0].name) {
-          totalInstalacoes++;
-        }
-      });
-
-      await sendMessage(chatId, `Você realizou ${totalInstalacoes} instalação${totalInstalacoes !== 1 ? 's' : ''} neste mês.`);
     } catch (err) {
-      console.error(err);
-      await sendMessage(chatId, 'Erro ao verificar suas instalações.');
+      console.error('Erro ao remover usuário:', err);
+      await sendMessage(chatId, 'Ocorreu um erro ao processar sua solicitação.');
     }
-    return res.status(200).send('OK');
+    return res.status(200).send('Remoção processada');
   }
 
-  // 🔹 Registro interativo após /command2
-  if (awaitingData[chatId]) {
-    const userData = awaitingData[chatId];
+  // 1️⃣ Registro de nome após o comando /nome
+  if (awaitingName[chatId]) {
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, nome: text })
+      });
 
-    if (!userData.name) {
-      awaitingData[chatId].name = text;
-      await sendMessage(chatId, 'Agora, informe seu sobrenome:');
-    } else if (!userData.surname) {
-      awaitingData[chatId].surname = text;
-      await sendMessage(chatId, 'Por fim, informe seu número de celular:');
-    } else {
-      awaitingData[chatId].phone = text;
+      delete awaitingName[chatId];
+      await sendMessage(chatId, 'Registrado com sucesso!');
+      return res.status(200).send('Nome salvo');
+    } catch (err) {
+      console.error(err);
+      await sendMessage(chatId, 'Erro ao registrar seu nome.');
+    }
+  }
+
+  // 2️⃣ Comandos básicos
+  switch (text) {
+    case '/start':
+      await sendMessage(chatId, 'Seja muito bem-vindo!');
+      break;
+
+    case '/command1':
+      await sendMessage(chatId, 'https://estoque-control.vercel.app/');
+      break;
+
+    case '/command2':
       try {
-        const profilePhoto = await getUserProfilePhoto(user.id);
+        const resp = await fetch(API_URL);
+        const users = await resp.json();
+        const userExists = users.some(user => user.chatId.toString() === chatId.toString());
 
-        await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatId,
-            name: `${userData.name} ${userData.surname}`,
-            phone: userData.phone,
-            avatar: profilePhoto || 'https://via.placeholder.com/150',
-            username: username
-          })
-        });
-
-        delete awaitingData[chatId];
-        await sendMessage(chatId, 'Registrado com sucesso! Agora você receberá notificações.');
+        if (!userExists) {
+          await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId })
+          });
+          await sendMessage(chatId, 'Você agora receberá notificações!');
+        } else {
+          await sendMessage(chatId, 'Você já está recebendo notificações.');
+        }
       } catch (err) {
         console.error(err);
-        await sendMessage(chatId, 'Erro ao registrar seus dados.');
+        await sendMessage(chatId, 'Erro ao cadastrar usuário.');
       }
-    }
-    return res.status(200).send('Registro processado');
+      break;
+
+    case '/nome':
+      awaitingName[chatId] = true;
+      await sendMessage(chatId, 'Qual o seu nome?');
+      break;
+
+    default:
+      break;
   }
 
   res.status(200).send('OK');
 }
 
-// 🔹 Envia mensagem para o Telegram
+// Função para enviar mensagem ao Telegram
 async function sendMessage(chatId, text) {
   console.log(`Enviando mensagem para ${chatId}: ${text}`);
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
@@ -140,26 +132,4 @@ async function sendMessage(chatId, text) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text })
   });
-}
-
-// 🔹 Obtém a foto de perfil do usuário
-async function getUserProfilePhoto(userId) {
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${userId}`);
-    const data = await response.json();
-    if (data.ok && data.result.total_count > 0) {
-      const fileId = data.result.photos[0][0].file_id;
-      return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${await getFilePath(fileId)}`;
-    }
-  } catch (error) {
-    console.error('Erro ao obter foto de perfil:', error);
-  }
-  return null;
-}
-
-// 🔹 Caminho do arquivo da foto de perfil
-async function getFilePath(fileId) {
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
-  const data = await response.json();
-  return data.ok ? data.result.file_path : null;
 }
