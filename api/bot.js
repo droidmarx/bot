@@ -14,12 +14,29 @@ export default async function handler(req, res) {
 
   const update = req.body;
   const message = update?.message;
+  const callbackQuery = update?.callback_query;
+
+  // 🔹 Tratar botões inline
+  if (callbackQuery) {
+    const data = callbackQuery.data;
+    const fromId = callbackQuery.from.id;
+
+    switch (data) {
+      case 'cadastrar':
+        req.body.message = { chat: { id: fromId }, text: '/command2', from: callbackQuery.from };
+        return await handler(req, res);
+      case 'remover':
+        req.body.message = { chat: { id: fromId }, text: '/command3', from: callbackQuery.from };
+        return await handler(req, res);
+    }
+  }
+
   if (!message) return res.status(200).send('No message');
 
   const chatId = message.chat.id;
   const text = message.text;
 
-  // 🔹 Encaminha mensagens enviadas pelo bot para todos os usuários
+  // 🔹 Encaminha mensagens do admin para todos os usuários
   if (chatId === 5759760387) {
     try {
       const resp = await fetch(API_URL);
@@ -40,7 +57,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 🛑 Remover notificações (/command3)
+  // 🛑 Remover notificações
   if (text === '/command3') {
     try {
       const resp = await fetch(API_URL);
@@ -61,7 +78,7 @@ export default async function handler(req, res) {
     return res.status(200).send('Remoção processada');
   }
 
-  // 1️⃣ Registro de nome após o comando /nome
+  // 1️⃣ Registro de nome após /nome
   if (awaitingName[chatId]) {
     try {
       await fetch(API_URL, {
@@ -79,10 +96,16 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2️⃣ Comandos básicos
+  // 2️⃣ Comandos
   switch (text) {
     case '/start':
-      await sendMessage(chatId, 'Seja muito bem-vindo!');
+      await sendMessage(chatId, 'Seja muito bem-vindo! Escolha uma opção:', {
+        inline_keyboard: [
+          [{ text: 'Abrir Estoque Control', url: 'https://estoque-control.vercel.app/' }],
+          [{ text: 'Cadastrar-se', callback_data: 'cadastrar' }],
+          [{ text: 'Remover Cadastro', callback_data: 'remover' }]
+        ]
+      });
       break;
 
     case '/command1':
@@ -99,15 +122,13 @@ export default async function handler(req, res) {
           const nome = `${message.from.first_name || ''} ${message.from.last_name || ''}`.trim();
           const username = message.from.username || '';
 
-          // 1. Buscar foto de perfil
+          // Foto de perfil
           const profileResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUserProfilePhotos?user_id=${chatId}&limit=1`);
           const profileData = await profileResp.json();
 
           let photoUrl = '';
           if (profileData.ok && profileData.result.total_count > 0) {
             const fileId = profileData.result.photos[0][0].file_id;
-
-            // 2. Obter caminho do arquivo
             const fileResp = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getFile?file_id=${fileId}`);
             const fileData = await fileResp.json();
 
@@ -116,7 +137,7 @@ export default async function handler(req, res) {
             }
           }
 
-          // 3. Registrar no banco
+          // Salvar usuário
           await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -145,12 +166,18 @@ export default async function handler(req, res) {
   res.status(200).send('OK');
 }
 
-// Função para enviar mensagem ao Telegram
-async function sendMessage(chatId, text) {
+// Função genérica para enviar mensagem
+async function sendMessage(chatId, text, replyMarkup = null) {
   console.log(`Enviando mensagem para ${chatId}: ${text}`);
+  const payload = {
+    chat_id: chatId,
+    text,
+    ...(replyMarkup && { reply_markup: { inline_keyboard: replyMarkup.inline_keyboard } })
+  };
+
   await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text })
+    body: JSON.stringify(payload)
   });
 }
