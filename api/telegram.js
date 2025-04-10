@@ -17,14 +17,14 @@ export default async function handler(req, res) {
   const baseUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
   try {
-    // Enviar texto
+    // Enviar mensagem de texto
     await fetch(`${baseUrl}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text })
     });
 
-    // Enviar imagem, se houver
+    // Enviar imagem
     if (imageUrl) {
       await fetch(`${baseUrl}/sendPhoto`, {
         method: 'POST',
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Enviar áudio, se houver
+    // Enviar áudio
     if (audioUrl) {
       await fetch(`${baseUrl}/sendAudio`, {
         method: 'POST',
