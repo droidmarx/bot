@@ -4,47 +4,37 @@ export default async function handler(req, res) {
   }
 
   const { chatId, text, imageUrl, audioUrl } = req.body;
-  const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 
-  if (!TELEGRAM_TOKEN) {
-    return res.status(500).json({ message: 'Token do Telegram não configurado.' });
-  }
-
-  if (!chatId || !text) {
-    return res.status(400).json({ message: 'chatId e text são obrigatórios.' });
-  }
-
-  const baseUrl = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
+  const BOT_TOKEN = process.env.TELEGRAM_TOKEN; // Corrigido para bater com o nome na Vercel
 
   try {
-    // Enviar mensagem de texto
-    await fetch(`${baseUrl}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text })
-    });
-
-    // Enviar imagem
-    if (imageUrl) {
-      await fetch(`${baseUrl}/sendPhoto`, {
+    if (text) {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, photo: imageUrl })
+        body: JSON.stringify({ chat_id: chatId, text }),
       });
     }
 
-    // Enviar áudio
-    if (audioUrl) {
-      await fetch(`${baseUrl}/sendAudio`, {
+    if (imageUrl) {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, audio: audioUrl })
+        body: JSON.stringify({ chat_id: chatId, photo: imageUrl }),
+      });
+    }
+
+    if (audioUrl) {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAudio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, audio: audioUrl }),
       });
     }
 
     res.status(200).json({ message: 'Mensagem enviada com sucesso!' });
-  } catch (error) {
-    console.error('Erro ao enviar para o Telegram:', error);
-    res.status(500).json({ message: 'Erro ao enviar mensagem.' });
+  } catch (err) {
+    console.error('Erro ao enviar para Telegram:', err);
+    res.status(500).json({ message: 'Erro ao enviar mensagem para o Telegram' });
   }
 }
